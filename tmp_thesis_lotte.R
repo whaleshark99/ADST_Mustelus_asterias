@@ -7,12 +7,11 @@ library(leaflet)
 library(htmlwidgets)
 library(webshot)
 
-
 # Spatial data layers
 
-bpns_boundaries <- st_read('~/spatial_data/bpns_boundaries/bpns_boundaries.shp', layer = 'bpns_boundaries')
-sandbanks <- st_read('~/spatial_data/sea_floor_geomorphology/sea_floor_geomorphology.shp', layer = 'sea_floor_geomorphology')
-owf_boundaries <- st_read('~/spatial_data/OWFs_shapefiles/RD20140320_art8_1_20140328.shp', layer = 'RD20140320_art8_1_20140328')
+bpns_boundaries <- st_read('./spatial_data/bpns_boundaries/bpns_boundaries.shp', layer = 'bpns_boundaries')
+sandbanks <- st_read('./spatial_data/sea_floor_geomorphology/sea_floor_geomorphology.shp', layer = 'sea_floor_geomorphology')
+owf_boundaries <- st_read('./spatial_data/OWFs_shapefiles/RD20140320_art8_1_20140328.shp', layer = 'RD20140320_art8_1_20140328')
 
 
 # Basic map
@@ -34,7 +33,7 @@ basic_map <- leaflet() %>%
   addPolygons(data = owf_boundaries, color = "#989898", weight = 1, smoothFactor = 0.5,
               opacity = 0.5, fillOpacity = 0.4,
               highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = F))
-
+basic_map
 
 # DB connection
 
@@ -55,11 +54,10 @@ deployments_20182019 <- deployments %>%
   arrange(desc(deploy_date_time)) %>%
   slice_head()
 
-
 # Map of deployments in 2018 - 2019
 
 map_receivers <- basic_map %>%
-  setView(3.8, 51.4, zoom = 9) %>% 
+  setView(3.8, 51.4, zoom = 8) %>% 
   addCircleMarkers(data = deployments_20182019,
                    lng = ~deploy_longitude,
                    lat = ~deploy_latitude,
@@ -67,16 +65,18 @@ map_receivers <- basic_map %>%
                    popup = ~station_name,
                    radius = 3,
                    stroke = F,
-                   fillOpacity = .6)
+                   fillOpacity = .6) %>%
+  addLegend(position = "bottomright", colors = c("#989898","#FFF2B3","blue"), labels = c("Offshore Wind Farm", "Sandbank", "Acoustic Receiver"))
 
 map_receivers
 
 
+
+
 # Save figure as html and export
 
-# saveWidget(map_plot, "tmp_map.html", selfcontained = FALSE)
-# webshot("tmp_map.html", file = "Deployments_2018-2019.pdf", vwidth = 1200, vheight = 700, cliprect = NULL)
-
+saveWidget(map_receivers, "tmp_map.html", selfcontained = FALSE)
+webshot("tmp_map.html", file = "Deployments_2018-2019.pdf", vwidth = 600, vheight = 350, cliprect = NULL)
 
 # ANIMAL DATA -----------------------------------------------------------
 
@@ -111,14 +111,53 @@ basic_map %>%
                    stroke = F,
                    fillOpacity = .3)
 
+
 detections_per_site <- detections_shark %>% group_by(deploy_latitude, deploy_longitude) %>% count() %>% arrange(desc(n))
 
-basic_map %>%
-  setView(3.8, 51.4, zoom = 10) %>% 
+detections_per_site_map <- 
+  basic_map %>%
+  # setView(3.8, 51.4, zoom = 9) %>% 
+  setView(3.0, 51.5, zoom = 9) %>% 
   addCircleMarkers(data = detections_per_site,
                    lng = ~deploy_longitude,
                    lat = ~deploy_latitude,
-                   radius = ~sqrt(n),
+                   # radius = ~sqrt(n),
+                   radius = ~'^'(n,1/3),
                    label = paste0(detections_per_site$n, ' detections'),
                    stroke = F,
-                   fillOpacity = .3)
+                   fillOpacity = .3) %>%
+  addLegendCustom(colors = "blue",
+                  labels = c("10 detections", "1000 detections", "10000 detections"), sizes = c('^'(10,1/3), '^'(1000,1/3), '^'(10000,1/3)))
+
+detections_per_site_map
+
+# Save figure as html and export
+
+saveWidget(detections_per_site_map, "tmp_map.html", selfcontained = FALSE)
+webshot("tmp_map.html", file = "M_asterias_detections_per_site.pdf", vwidth = 800, vheight = 500, cliprect = NULL)
+
+# Remove large files
+file.remove("tmp_map.html")
+unlink("tmp_map_files", recursive = TRUE)
+
+
+# FUNCTIONS --------------------------------------
+# addLegendCustom <- function(map, colors, labels, sizes, opacity = .5){
+#   # colorAdditions <- paste0(colors, "; width:", sizes, "px; height:", sizes, "px")
+#   colorAdditions <- paste0(colors, "; border-radius: 50%; width:", sizes, "px; height:", sizes, "px")
+#   labelAdditions <- paste0("<div style='display: inline-block;height: ", 
+#                            sizes, "px;margin-top: 2px;line-height: ", sizes, "px;'>", 
+#                            labels, "</div>")
+#   return(addLegend(map, position = "bottomright", colors = colorAdditions, 
+#                    labels = labelAdditions, opacity = opacity))
+# }
+
+addLegendCustom <- function(map, colors, labels, sizes, opacity = .5){
+  # colorAdditions <- paste0(colors, "; width:", sizes, "pt; height:", sizes, "pt")
+  colorAdditions <- paste0(colors, "; border-radius: 50%; width:", sizes, "pt; height:", sizes, "pt")
+  labelAdditions <- paste0("<div style='display: inline-block;height: ", 
+                           sizes, "pt;margin-top: 0pt;line-height: ", sizes, "pt;'>", 
+                           labels, "</div>")
+  return(addLegend(map, position = "bottomright", colors = colorAdditions, 
+                   labels = labelAdditions, opacity = opacity))
+}
